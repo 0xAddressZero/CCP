@@ -1,0 +1,14 @@
+{
+    "editor.formatOnSave": false,
+    "makefile.extensionOutputFolder": "./.vscode",
+    "solidity.compilerOptimization": 200,
+    "solidity.enabledAsYouTypeCompilationErrorCheck": true,
+    "solidity.formatter": "prettier",
+    "solidity.linter": "solhint",
+    "solidity.validationDelay": 1500,
+    "solidity.compileUsingLocalVersion": "latest",
+    "[solidity]": {
+        "editor.tabSize": 4,
+    },
+    "solidity.compileUsingRemoteVersion": "latest"
+}

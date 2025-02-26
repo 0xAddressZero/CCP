@@ -1,0 +1,15 @@
+[[overrides]]
+files = "*.sol"
+
+[overrides.options]
+printWidth = 80
+tabWidth = 4
+useTabs = false
+singleQuote = false
+bracketSpacing = true
+explicitTypes = "always"
+compiler = "0.8.29"
+trailingComma = "all"
+semi = true
+arrowParens = "avoid"
+endOfLine = "lf"

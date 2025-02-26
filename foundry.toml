@@ -1,0 +1,29 @@
+[profile.default]
+compiler = "0.8.28"
+optimizer = true
+optimizer_runs = 6900
+src = "src"
+out = "out"
+libs = ["dependencies"]
+verbosity = 2
+ffi = false
+auto_detect_remappings = false
+remappings = [
+    "forge-std/=dependencies/forge-std-1.9.6/src"
+]
+
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}" }
+
+[dependencies]
+forge-std = "1.9.6"
+
+[soldeer]
+remappings_prefix = ""
+remappings_generate = false
+remappings_regenerate = false
+remappings_version = false
+recursive_deps = false
