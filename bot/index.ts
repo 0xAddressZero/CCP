@@ -53,83 +53,39 @@ bot.command('spxp', limiter.wrap(async (ctx) => {
 }));
 
 bot.command('tip', limiter.wrap(async (ctx) => {
-    if (ctx.chat?.type == 'private') {
+    // Check if command is used in a group
+    if (ctx.chat?.type === 'private') {
         await ctx.reply('This command can only be used in groups.');
-        return
+        return;
     }
 
+    // Check if a transfer is already pending
     if (isTransferPending) {
         await ctx.reply('A transfer is pending. Try later.');
         return;
     }
 
+    // Get sender's user ID
     const userId = ctx.from?.id;
     if (!userId) {
         await ctx.reply('Could not determine your user ID.');
         return;
     }
 
-
-    const args = ctx.message?.text?.split(' ').slice(1);
-    const isReply = !!ctx.message?.reply_to_message;
-    if (!args || args.length === 0) {
-        await ctx.reply('Usage: Reply with /tip <amount>');
+    // Parse the amount using regex: /tip followed by space(s) and digits
+    const match = ctx.message?.text?.match(/\/tip\s+(\d+)/);
+    if (!match) {
+        await ctx.reply('Usage: Reply with /tip <amount>, where <amount> is a positive number.');
         return;
     }
+    const amountStr = match[1]; // Captured digits
 
-    const amountMatch = args[0].match(/\d+/);
-    const amountStr = amountMatch ? amountMatch[0] : '';
-
-    if (!amountMatch) {
-        await ctx.reply('Invalid amount.');
-        return;
-    }
-
-    let toUserId: number;
-    let target: string;
-    let sourceFullname = ctx.from?.first_name + ' ' + (ctx.from?.last_name || '');
-    let targetFullname: string;
-
-    if (isReply) {
-        toUserId = ctx.message.reply_to_message?.from?.id!;
-        target = ctx.message.reply_to_message?.from?.username!;
-
-        const firstName = ctx.message.reply_to_message.from?.first_name;
-        const lastName = ctx.message.reply_to_message.from?.last_name || '';
-        targetFullname = firstName + ' ' + lastName;
-
-        if (!toUserId) {
-            await ctx.reply('Could not determine recipient from reply.');
-            return;
-        }
-    } else {
-        await ctx.reply('Usage: Reply to a message with /tip <amount>');
-        return;
-    }
-
-    if (userId == toUserId) {
-        await ctx.reply('You cannot tip yourself.');
-        return;
-    }
-
-    if (toUserId == botUserId) {
-        await ctx.reply('You cannot tip the bot.');
-        return;
-    }
-
+    // Convert to wei using parseEther (assumes amount is in ether units)
     let amount;
-
-    // don't allow floating point amount like 0.1 or 1.1212
-    if (amountStr.includes('.')) {
-        await ctx.reply('Invalid amount');
-        return;
-    }
-
     try {
         amount = parseEther(amountStr);
-
-        if (amount <= 0) {
-            await ctx.reply('Invalid amount.');
+        if (amount === 0n) {
+            await ctx.reply('Amount must be greater than zero.');
             return;
         }
     } catch (error) {
@@ -137,12 +93,42 @@ bot.command('tip', limiter.wrap(async (ctx) => {
         return;
     }
 
-    const senderBalance = await getBalance(userId);
-    if (senderBalance < amount) {
-        await ctx.reply('Insufficient balance, you have ' + formatEther(senderBalance) + ' SPXP');
+    // Check if the command is a reply
+    const isReply = !!ctx.message?.reply_to_message;
+    if (!isReply) {
+        await ctx.reply('Usage: Reply to a message with /tip <amount>');
         return;
     }
 
+    // Get recipient's user ID and details
+    const toUserId = ctx.message.reply_to_message?.from?.id;
+    const targetFullname = ctx.message.reply_to_message.from?.first_name + ' ' + 
+                         (ctx.message.reply_to_message.from?.last_name || '');
+    const sourceFullname = ctx.from?.first_name + ' ' + (ctx.from?.last_name || '');
+
+    if (!toUserId) {
+        await ctx.reply('Could not determine recipient from reply.');
+        return;
+    }
+
+    // Prevent self-tipping or tipping the bot
+    if (userId === toUserId) {
+        await ctx.reply('You cannot tip yourself.');
+        return;
+    }
+    if (toUserId === botUserId) {
+        await ctx.reply('You cannot tip the bot.');
+        return;
+    }
+
+    // Check sender's balance
+    const senderBalance = await getBalance(userId);
+    if (senderBalance < amount) {
+        await ctx.reply(`Insufficient balance, you have ${formatEther(senderBalance)} SPXP`);
+        return;
+    }
+
+    // Execute the transfer
     isTransferPending = true;
     try {
         await ctx.reply(`Tipping ${formatEther(amount)} SPXP to ${targetFullname}...`);
@@ -155,9 +141,10 @@ bot.command('tip', limiter.wrap(async (ctx) => {
         });
 
         await publicClient.waitForTransactionReceipt({ hash });
-        const basescanUrl = `https://basescan.org/tx/${hash}`;
-        await ctx.reply(`${sourceFullname} tipped ${formatEther(amount)} SPXP to ${targetFullname}. [Tx](${basescanUrl})`, { parse_mode: "Markdown" });
-
+        await ctx.reply(`${sourceFullname} tipped ${formatEther(amount)} SPXP to ${targetFullname}. tx: ${hash}`);
+    } catch (error) {
+        await ctx.reply('Transfer failed. Please try again later.');
+        console.error('Transfer error:', error);
     } finally {
         isTransferPending = false;
     }
