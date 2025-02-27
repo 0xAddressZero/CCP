@@ -130,10 +130,12 @@ bot.command('tip', limiter.wrap(async (ctx) => {
 
     // Execute the transfer
     isTransferPending = true;
+    let hash;
+
     try {
         await ctx.reply(`Tipping ${formatEther(amount)} SPXP to ${targetFullname}...`);
 
-        const hash = await walletClient.writeContract({
+        hash = await walletClient.writeContract({
             address: CONTRACT_ADDRESS,
             abi: SPXP_ABI,
             functionName: 'transfer',
@@ -141,9 +143,9 @@ bot.command('tip', limiter.wrap(async (ctx) => {
         });
 
         await publicClient.waitForTransactionReceipt({ hash });
-        await ctx.reply(`${sourceFullname} tipped ${formatEther(amount)} SPXP to ${targetFullname}. tx: ${hash}`);
+        await ctx.reply(`${sourceFullname} tipped ${formatEther(amount)} SPXP to ${targetFullname}\n___\n${hash}`);
     } catch (error) {
-        await ctx.reply('Transfer failed. Please try again later.');
+        await ctx.reply(`Transfer may have failed, verify the tx ${hash} on basescan.`);
         console.error('Transfer error:', error);
     } finally {
         isTransferPending = false;
