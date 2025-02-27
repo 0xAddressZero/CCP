@@ -1,4 +1,4 @@
-import { Telegraf } from 'telegraf';
+import { Context, Telegraf } from 'telegraf';
 import { config } from 'dotenv';
 import { createPublicClient, createWalletClient, http, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -15,6 +15,7 @@ const BASE_RPC_URL = process.env.BASE_RPC_URL!;
 const SPXP_ABI = [
     { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'uint256' }], outputs: [{ name: '', type: 'uint256' }] },
     { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'from', type: 'uint256' }, { name: 'to', type: 'uint256' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] },
+    { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'from', type: 'uint256' }, { name: 'fromUsername', type: 'string' }, { name: 'to', type: 'uint256' }, { name: 'toUsername', type: 'string' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] },
 ] as const;
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
@@ -35,7 +36,7 @@ async function getBalance(userId: number): Promise<bigint> {
     })) as bigint;
 }
 
-bot.command('spxp', limiter.wrap(async (ctx) => {
+bot.command('spxp', limiter.wrap(async (ctx: any) => {
     try {
         const userId = ctx.from?.id;
         if (!userId) {
@@ -52,7 +53,7 @@ bot.command('spxp', limiter.wrap(async (ctx) => {
     }
 }));
 
-bot.command('tip', limiter.wrap(async (ctx) => {
+bot.command('tip', limiter.wrap(async (ctx: any) => {
     // Check if command is used in a group
     if (ctx.chat?.type === 'private') {
         await ctx.reply('This command can only be used in groups.');
@@ -101,9 +102,11 @@ bot.command('tip', limiter.wrap(async (ctx) => {
     }
 
     // Get recipient's user ID and details
+    const sourceUsername = ctx.from?.username;
+    const targetUsername = ctx.message.reply_to_message.from?.username;
     const toUserId = ctx.message.reply_to_message?.from?.id;
-    const targetFullname = ctx.message.reply_to_message.from?.first_name + ' ' + 
-                         (ctx.message.reply_to_message.from?.last_name || '');
+    const targetFullname = ctx.message.reply_to_message.from?.first_name + ' ' +
+        (ctx.message.reply_to_message.from?.last_name || '');
     const sourceFullname = ctx.from?.first_name + ' ' + (ctx.from?.last_name || '');
 
     if (!toUserId) {
@@ -139,7 +142,7 @@ bot.command('tip', limiter.wrap(async (ctx) => {
             address: CONTRACT_ADDRESS,
             abi: SPXP_ABI,
             functionName: 'transfer',
-            args: [BigInt(userId), BigInt(toUserId), amount],
+            args: [BigInt(userId), sourceUsername, BigInt(toUserId), targetUsername, amount],
         });
 
         await publicClient.waitForTransactionReceipt({ hash });

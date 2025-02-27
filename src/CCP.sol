@@ -139,49 +139,130 @@ pragma solidity 0.8.28;
 //                       %%%%%%%%%%%%%%%%%%%%%%%%%%###          %%##%%%%%%%%%%#%%
 //                        %@@@@@@%%%%%%%%% %%%%%%%####           %%%%%%%%%%%%%
 //                              @@%        %%%%%%%%##%              %%%
+// Persist Forever.
 
-contract SPXP {
-    string public constant name = "SPX6900 Points";
-    string public constant symbol = "SPXP";
+/// @title SPX6900 Cognispheric Collective Points
+/// @author 0xAddressZero / undefined
+contract CCP {
+    string public constant name = "Cognispheric Collective Points";
+    string public constant symbol = "CCP";
     uint8 public constant decimals = 18;
 
     uint public constant MAX_SUPPLY = 69_000_000 ether;
 
-    mapping(uint user_id => uint balance) public balanceOf;
-    mapping(address account => bool allowed) public allowedTransfer;
+    struct UserIdent {
+        uint id;
+        string username;
+    }
+
+    struct UserInfo {
+        uint id;
+        string username;
+        uint balance;
+    }
+
+    mapping(uint id => uint balance) public balanceOf;
+    mapping(address account => bool enabled) public handlers;
+    mapping(uint id => bool usernameExists) public usernameExists;
+    mapping(uint id => uint usernameIndex) public idToUserIndex;
+    UserIdent[] public _users;
 
     uint public totalSupply;
     address public owner;
 
-    constructor(address _owner, uint _owner_user_id) {
-        balanceOf[_owner_user_id] += MAX_SUPPLY;
+    constructor(address _owner, uint _ownerUserId) {
+        balanceOf[_ownerUserId] += MAX_SUPPLY;
         totalSupply += MAX_SUPPLY;
         owner = _owner;
 
         emit OwnershipTransferred(address(0), _owner);
-        emit Transfer(0, _owner_user_id, MAX_SUPPLY);
+        emit Transfer(0, _ownerUserId, MAX_SUPPLY);
+    }
+
+    function user(uint id) external view returns (UserInfo memory) {
+        require(usernameExists[id], UserDoesNotExist());
+        UserIdent memory _user = _users[idToUserIndex[id]];
+
+        return
+            UserInfo({
+                id: _user.id,
+                balance: balanceOf[_user.id],
+                username: _user.username
+            });
+    }
+
+    function users(
+        uint fromIndex,
+        uint toIndex
+    ) external view returns (UserInfo[] memory _someUsers) {
+        require(fromIndex <= toIndex, InvalidRange());
+        _someUsers = new UserInfo[](toIndex - fromIndex);
+
+        for (uint i = fromIndex; i < toIndex; i++) {
+            UserIdent memory _user = _users[i];
+            _someUsers[i - fromIndex] = UserInfo({
+                id: _user.id,
+                balance: balanceOf[_user.id],
+                username: _user.username
+            });
+        }
+    }
+
+    function userLength() external view returns (uint) {
+        return _users.length;
+    }
+
+    function setUsername(uint id, string memory username) public onlyHandlers {
+        if (usernameExists[id]) {
+            uint index = idToUserIndex[id];
+            _users[index].username = username;
+        } else {
+            _users.push(UserIdent({ id: id, username: username }));
+            idToUserIndex[id] = _users.length - 1;
+            usernameExists[id] = true;
+        }
+        emit UsernameSet(id, username);
+    }
+
+    function transfer(uint from, uint to, uint amount) public onlyHandlers {
+        balanceOf[from] -= amount;
+        unchecked {
+            balanceOf[to] += amount;
+        }
+        emit Transfer(from, to, amount);
     }
 
     function transfer(
-        uint from_user_id,
-        uint to_user_id,
+        uint from,
+        string memory fromUsername,
+        uint to,
+        string memory toUsername,
         uint amount
-    ) external onlyAllowedTransfer {
-        balanceOf[from_user_id] -= amount;
-
-        unchecked {
-            balanceOf[to_user_id] += amount;
-        }
-
-        emit Transfer(from_user_id, to_user_id, amount);
+    ) external onlyHandlers {
+        transfer(from, to, amount);
+        setUsername(from, fromUsername);
+        setUsername(to, toUsername);
     }
 
-    function setTransferAllowed(
+    function mint(uint id, uint amount) external onlyHandlers {
+        require(totalSupply + amount <= MAX_SUPPLY, ExceedsMaxSupply());
+        balanceOf[id] += amount;
+        totalSupply += amount;
+        emit Transfer(0, id, amount);
+    }
+
+    function burn(uint id, uint amount) external onlyHandlers {
+        balanceOf[id] -= amount;
+        totalSupply -= amount;
+        emit Transfer(id, 0, amount);
+    }
+
+    function setHandlerEnabled(
         address account,
-        bool allowed
+        bool enabled
     ) external onlyOwner {
-        allowedTransfer[account] = allowed;
-        emit TransferAllowed(account, allowed);
+        handlers[account] = enabled;
+        emit TransferAllowed(account, enabled);
     }
 
     function transferOwnership(address newOwner) public virtual onlyOwner {
@@ -194,11 +275,8 @@ contract SPXP {
         _;
     }
 
-    modifier onlyAllowedTransfer() {
-        require(
-            allowedTransfer[msg.sender] || msg.sender == owner,
-            Unauthorized()
-        );
+    modifier onlyHandlers() {
+        require(handlers[msg.sender] || msg.sender == owner, Unauthorized());
         _;
     }
 
@@ -209,5 +287,10 @@ contract SPXP {
         uint amount
     );
     event TransferAllowed(address indexed account, bool allowed);
+    event UsernameSet(uint indexed user_id, string username);
+
+    error UserDoesNotExist();
     error Unauthorized();
+    error ExceedsMaxSupply();
+    error InvalidRange();
 }
