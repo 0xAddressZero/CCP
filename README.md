@@ -34,3 +34,6 @@ Create `.env` from `.env.example`
 ```shell
 bun start
 ```
+
+# Deployments
+CCP: 0xD786BB09B249767d1475C3b1b2D76741BfCF5b00
