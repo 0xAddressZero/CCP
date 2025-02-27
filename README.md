@@ -32,6 +32,7 @@ Create `.env` from `.env.example`
 
 **Run**
 ```shell
+cd bot
 bun start
 ```
 
